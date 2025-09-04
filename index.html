@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Downloader Aman</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    html,body{background:#0B1221;color:#E6EAF2}
+    .card{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:16px}
+    .btn{background:#22C55E;color:#0B1221;padding:.75rem 1rem;border-radius:12px;font-weight:800}
+    .btn:disabled{opacity:.6}
+    .input{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);padding:.7rem .9rem;border-radius:.8rem;width:100%}
+    .muted{opacity:.8}
+  </style>
+</head>
+<body>
+  <header class="max-w-3xl mx-auto px-4 py-6">
+    <div class="text-2xl font-extrabold">Downloader Aman</div>
+    <div class="muted text-sm">Hanya untuk file publik langsung (mp4/webm/jpg/png/wav). Tidak melewati login/DRM. Patuhi hak cipta & TOS.</div>
+  </header>
+
+  <main class="max-w-3xl mx-auto px-4 pb-24">
+    <section class="card p-5 space-y-4">
+      <div>
+        <label class="block mb-1 muted">URL file publik</label>
+        <input id="url" class="input" placeholder="https://.../video.mp4">
+      </div>
+      <div class="flex items-center gap-2 text-sm">
+        <input id="agree" type="checkbox">
+        <label for="agree">Saya punya izin/hak untuk mengunduh konten ini.</label>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="btnCheck" class="btn">Cek File</button>
+        <a id="dlBtn" class="btn" style="display:none" download>Unduh</a>
+      </div>
+      <div id="meta" class="text-sm"></div>
+      <div id="status" class="text-sm"></div>
+    </section>
+  </main>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    $('btnCheck').addEventListener('click', async () => {
+      const url = $('url').value.trim();
+      $('status').textContent = 'Memeriksa...';
+      $('dlBtn').style.display = 'none';
+
+      if (!url) { $('status').textContent = 'Masukkan URL dulu.'; return; }
+      if (!$('agree').checked) { $('status').textContent = 'Centang pernyataan izin terlebih dahulu.'; return; }
+
+      try {
+        // OG preview jika URL halaman
+        const og = await fetch('/api/og?url=' + encodeURIComponent(url)).then(r=>r.json());
+        if (og.ok && (og.title || og.image)) {
+          $('meta').innerHTML = `<div>Judul: ${og.title||'-'}</div>${og.image?`<img src="${og.image}" class="mt-2 rounded max-h-40"/>`:''}`;
+        } else {
+          $('meta').textContent = '';
+        }
+      } catch {}
+
+      const probe = await fetch('/api/head', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ url })
+      }).then(r=>r.json()).catch(()=>({ok:false, error:'Gagal cek'}));
+
+      if (!probe.ok) {
+        $('status').textContent = probe.error || 'URL tidak valid / bukan file publik langsung.';
+        return;
+      }
+
+      $('status').textContent = `Siap diunduh. Type: ${probe.contentType||'-'} ${probe.contentLength?('• Size: '+probe.contentLength+' bytes'):''}`;
+      const fname = prompt('Nama file (tanpa ekstensi):', 'rednote-media') || 'download';
+      const dlUrl = `/api/download?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(fname)}`;
+      const a = $('dlBtn');
+      a.href = dlUrl;
+      a.style.display = 'inline-block';
+    });
+  </script>
+</body>
+</html>
